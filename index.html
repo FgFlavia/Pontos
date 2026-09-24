@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PontoEletrônico - Controle de Ponto e Antifraude</title>
+
+    <!-- CDN Libraries -->
+    <!-- Supabase JS Client v2 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+    <!-- JS SHA-256 -->
+    <script src="https://cdn.jsdelivr.net/npm/js-sha256@0.11.0/src/sha256.min.js"></script>
+    <!-- HTML5 QR Code -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <div class="kiosk-container">
+        <!-- Header: Top Info Bar with Clock -->
+        <header class="kiosk-header">
+            <div class="brand">
+                <i data-lucide="shield-check" class="brand-icon"></i>
+                <div class="brand-text">
+                    <h1>PontoDigital</h1>
+                    <span class="subtitle">Sistema Antifraude Kiosk</span>
+                </div>
+            </div>
+
+            <div class="realtime-clock-container">
+                <div class="time-display" id="clock-time">00:00:00</div>
+                <div class="date-display" id="clock-date">Carregando data...</div>
+            </div>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main class="kiosk-main">
+            <!-- Left Side: Employee Identification & Numeric Keypad -->
+            <section class="input-section">
+                <div class="section-card">
+                    <div class="card-header">
+                        <h2><i data-lucide="user-check"></i> Identificação do Funcionário</h2>
+                        <p class="instruction">Digite a Matrícula ou CPF abaixo ou leia o QR Code</p>
+                    </div>
+
+                    <div class="input-display-wrapper">
+                        <i data-lucide="id-card" class="input-icon"></i>
+                        <input type="text" id="employee-id-input" placeholder="Digite sua Matrícula ou CPF" readonly autocomplete="off">
+                        <button type="button" class="btn-clear-single" id="btn-backspace" title="Apagar último número">
+                            <i data-lucide="delete"></i>
+                        </button>
+                    </div>
+
+                    <!-- Status Selector / Suggestion -->
+                    <div class="type-selector-wrapper">
+                        <div class="type-badge-container">
+                            <span class="badge-label">Próximo Registro Sugerido:</span>
+                            <span id="suggested-type-badge" class="badge badge-entrada">
+                                <i data-lucide="arrow-right-circle"></i> ENTRADA
+                            </span>
+                        </div>
+                        <div class="type-toggle-group">
+                            <button type="button" class="btn-toggle active" data-type="ENTRADA" id="btn-type-entrada">
+                                <i data-lucide="log-in"></i> ENTRADA
+                            </button>
+                            <button type="button" class="btn-toggle" data-type="SAIDA" id="btn-type-saida">
+                                <i data-lucide="log-out"></i> SAÍDA
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Alert Box for Antifraud & Logic Warnings -->
+                    <div id="alert-box" class="alert-box hidden">
+                        <i data-lucide="alert-triangle" class="alert-icon"></i>
+                        <span id="alert-message">Mensagem de alerta</span>
+                    </div>
+
+                    <!-- Keypad and Action Controls -->
+                    <div class="keypad-grid">
+                        <button type="button" class="keypad-btn" data-key="1">1</button>
+                        <button type="button" class="keypad-btn" data-key="2">2</button>
+                        <button type="button" class="keypad-btn" data-key="3">3</button>
+                        <button type="button" class="keypad-btn" data-key="4">4</button>
+                        <button type="button" class="keypad-btn" data-key="5">5</button>
+                        <button type="button" class="keypad-btn" data-key="6">6</button>
+                        <button type="button" class="keypad-btn" data-key="7">7</button>
+                        <button type="button" class="keypad-btn" data-key="8">8</button>
+                        <button type="button" class="keypad-btn" data-key="9">9</button>
+                        <button type="button" class="keypad-btn btn-clear-all" id="btn-clear">LIMPAR</button>
+                        <button type="button" class="keypad-btn" data-key="0">0</button>
+                        <button type="button" class="keypad-btn btn-qr" id="btn-open-qr">
+                            <i data-lucide="qr-code"></i> QR
+                        </button>
+                    </div>
+
+                    <button type="button" class="btn-submit-ponto" id="btn-submit">
+                        <i data-lucide="check-circle-2"></i> REGISTRAR PONTO
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Side: Recent Activity & Quick Demo Info -->
+            <section class="side-panel">
+                <div class="section-card recent-activity-card">
+                    <div class="card-header">
+                        <h3><i data-lucide="history"></i> ÚLTIMOS REGISTROS NA TELA</h3>
+                    </div>
+                    <div class="recent-list" id="recent-logs-list">
+                        <div class="empty-list">Nenhum registro efetuado nesta sessão.</div>
+                    </div>
+                </div>
+
+                <div class="section-card demo-info-card">
+                    <div class="card-header">
+                        <h3><i data-lucide="info"></i> MATRÍCULAS DE TESTE</h3>
+                    </div>
+                    <div class="demo-list">
+                        <div class="demo-item" onclick="quickFill('1001')">
+                            <strong>1001</strong> - Carlos Eduardo (Dev)
+                        </div>
+                        <div class="demo-item" onclick="quickFill('1002')">
+                            <strong>1002</strong> - Ana Maria (RH)
+                        </div>
+                        <div class="demo-item" onclick="quickFill('1003')">
+                            <strong>1003</strong> - Roberto Santos (Gerente)
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal QR Code Reader -->
+    <div id="qr-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i data-lucide="qr-code"></i> Leitor de QR Code</h3>
+                <button type="button" class="btn-close-modal" id="btn-close-qr"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div id="qr-reader-container"></div>
+                <p class="hint">Aproxime o QR Code do seu crachá da câmera.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ticket Comprovante -->
+    <div id="ticket-modal" class="modal-overlay hidden">
+        <div class="modal-card ticket-card">
+            <div class="ticket-wrapper" id="printable-ticket">
+                <div class="ticket-header">
+                    <i data-lucide="shield-check" class="ticket-logo"></i>
+                    <h2>COMPROVANTE DE REGISTRO DE PONTO</h2>
+                    <p class="company-name">SISTEMA PONTO DIGITAL S/A</p>
+                    <p class="cnpj">CNPJ: 00.123.456/0001-89</p>
+                </div>
+
+                <div class="ticket-divider">******************************************</div>
+
+                <div class="ticket-details">
+                    <div class="ticket-row">
+                        <span>MATRÍCULA:</span>
+                        <strong id="ticket-matricula">---</strong>
+                    </div>
+                    <div class="ticket-row">
+                        <span>NOME:</span>
+                        <strong id="ticket-nome">---</strong>
+                    </div>
+                    <div class="ticket-row">
+                        <span>TIPO REGISTRO:</span>
+                        <strong id="ticket-tipo" class="ticket-type-badge">---</strong>
+                    </div>
+                    <div class="ticket-row">
+                        <span>DATA E HORA:</span>
+                        <strong id="ticket-datahora">---</strong>
+                    </div>
+                    <div class="ticket-row">
+                        <span>ORIGEM:</span>
+                        <span>TERMINAL TABLET KIOSK</span>
+                    </div>
+                </div>
+
+                <div class="ticket-divider">******************************************</div>
+
+                <div class="ticket-hash-box">
+                    <span class="hash-label">CÓDIGO DE VERIFICAÇÃO HASH (ANTIFRAUDE):</span>
+                    <span id="ticket-hash" class="hash-code">000000000000</span>
+                    <p class="hash-note">Validação via algoritmo SHA-256 de 64 bits</p>
+                </div>
+
+                <div class="ticket-footer">
+                    <p>Conserve este comprovante para fins trabalhistas.</p>
+                    <p class="ticket-timestamp" id="ticket-generated-at"></p>
+                </div>
+            </div>
+
+            <div class="modal-actions no-print">
+                <button type="button" class="btn-print" id="btn-print-ticket">
+                    <i data-lucide="printer"></i> IMPRIMIR TICKET
+                </button>
+                <button type="button" class="btn-secondary" id="btn-close-ticket">
+                    <i data-lucide="check"></i> CONCLUÍDO
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Configuration & Main JS -->
+    <script src="js/config.js"></script>
+    <script src="js/app.js"></script>
+
+    <script>
+        // Inicializar ícones Lucide
+        lucide.createIcons();
+    </script>
+</body>
+</html>
